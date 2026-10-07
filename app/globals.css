@@ -1,0 +1,15 @@
+@import "tailwindcss";
+
+:root { --brand: #dd3938; --background: #ffffff; --foreground: #171717; }
+@theme inline { --color-brand: var(--brand); --font-sans: var(--font-manrope); --font-dm: var(--font-dm-sans); --font-montserrat: var(--font-montserrat); }
+* { box-sizing: border-box; }
+html { background: var(--background); scroll-behavior: smooth; }
+html.lenis, html.lenis body { height: auto; }
+.lenis.lenis-smooth { scroll-behavior: auto !important; }
+.lenis.lenis-stopped { overflow: hidden; }
+body { margin: 0; overflow-x: hidden; background: var(--background); color: var(--foreground); font-family: var(--font-manrope), sans-serif; }
+section { scroll-margin-top: 5rem; }
+a, button { transition: color .2s, background-color .2s, border-color .2s, transform .2s; }
+.swiper-pagination-bullet { background: #171717 !important; opacity: .35 !important; }
+.swiper-pagination-bullet-active { background: #b42322 !important; opacity: 1 !important; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
