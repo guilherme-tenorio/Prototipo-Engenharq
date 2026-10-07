@@ -1,0 +1,665 @@
+# EngenhArq — Instruções para construção do site institucional
+
+> Este arquivo é lido pelo Codex (agente de código). Siga TODAS as instruções abaixo, na ordem.
+> Idioma do site e do conteúdo: português do Brasil (pt-BR). Idioma do código: inglês.
+
+---
+
+## 1. Objetivo
+
+Criar um site institucional para a construtora **EngenhArq**, com foco em **estética moderna**, totalmente **responsivo** e que siga as normas de acessibilidade **WCAG 2** (nível AA, no mínimo).
+
+Protótipo no Figma (fonte de CONTEÚDO e de IDENTIDADE VISUAL):
+https://www.figma.com/design/aVnCtEjSHJRvU4rWbQstRz/Prot%C3%B3tipo-Engenharq?node-id=119-15&t=wmezBlpb24WuYSPT-4
+
+**ATENÇÃO:** o protótipo NÃO foi feito com foco em layout. Portanto:
+- USE do Figma, de forma fiel: **textos (copy)**, **paleta de cores**, **tipografia** (famílias, pesos, hierarquia de tamanhos), **estilo visual** (raios de borda, sombras, tom geral) e **ordem/estrutura das seções**.
+- NÃO siga fielmente as **disposições de layout** (posições, larguras fixas, alinhamentos, grids e espaçamentos exatos). Aplique boas práticas de layout responsivo e use as animações definidas na seção 4. Onde o Figma e este arquivo divergirem sobre layout, este arquivo e a acessibilidade vencem.
+
+### 1.1 Como usar o Figma via MCP
+
+1. Verifique se o servidor MCP do Figma está configurado e autenticado no Codex (endereço remoto usual: `https://mcp.figma.com/mcp`). Se não estiver, avise o usuário e peça para configurar, em vez de inventar o conteúdo.
+2. Leia o Figma **frame por frame** (um por seção). Se só houver o link acima, comece por ele e peça ao usuário os links dos demais frames (botão direito no frame → "Copy link to selection").
+3. Ferramentas úteis do MCP: leitura do contexto/código de design do nó (textos, estilos, hierarquia), variáveis de design (cores/tipografia) e screenshot do frame.
+4. **Textos:** copie literalmente do Figma (acentuação, pontuação, maiúsculas). Não reescreva, não resuma, não traduza e não invente conteúdo. Se um texto for placeholder ("Lorem ipsum") ou estiver dentro de imagem/vetor (não legível como texto), NÃO preencha por conta própria: deixe um comentário `TODO` no código e liste na resposta final o que está pendente.
+5. **Estilo:** extraia cores e tipografia como tokens (variáveis CSS / `tailwind.config`) e use-os em todo o site. Verifique o contraste (WCAG AA) e, se alguma cor do Figma reprovar, ajuste o mínimo necessário e registre a mudança.
+6. **Layout:** o código de referência gerado pelo MCP é só uma base. Reestruture-o com Tailwind, mobile-first, usando larguras fluidas, `max-w-*`, grid/flex e os componentes de `/components/ui`. Não copie posicionamento absoluto nem tamanhos fixos em px do Figma.
+7. Salve os textos extraídos em `/content/site.ts` (ou `/content/conteudo.md`), organizados por seção, e consuma-os nos componentes. Isso facilita futuras edições.
+
+---
+
+## 2. Stack obrigatória
+
+- HTML semântico + CSS
+- React com **Next.js** (App Router)
+- **TypeScript**
+- **Tailwind CSS**
+- Estrutura de projeto **shadcn/ui**
+- **framer-motion** (animações)
+- **swiper** (carrossel de depoimentos)
+- **lucide-react** (ícones/SVGs)
+
+### Verificação do projeto
+
+O projeto deve suportar: shadcn project structure, Tailwind CSS e TypeScript.
+Se não suportar, configure assim:
+
+```bash
+# Criar o projeto (se ainda não existir)
+npx create-next-app@latest engenharq --typescript --tailwind --eslint --app --src-dir=false --import-alias "@/*"
+cd engenharq
+
+# Inicializar shadcn
+npx shadcn@latest init
+
+# Dependências das animações
+npm install framer-motion swiper lucide-react
+```
+
+### Caminhos padrão
+
+- Componentes: `/components`
+- Componentes de UI (shadcn e animações abaixo): **`/components/ui`**
+- Utilitário `cn`: `/lib/utils.ts`
+- Estilos globais: `/app/globals.css`
+- Imagens estáticas: `/public/images`
+
+**Por que `/components/ui` é importante:** é a convenção do shadcn/ui. A CLI, os aliases (`@/components/ui/...`) e os imports dos componentes copiados dependem dessa pasta. Se o projeto usar outro caminho padrão, crie `/components/ui` e mantenha os componentes de animação lá para que os imports `@/components/ui/...` funcionem sem alterações.
+
+---
+
+## 3. Requisitos gerais
+
+1. **Navbar fixa que acompanha o scroll** (`position: sticky` ou `fixed` no topo, sempre visível). Deve ter contraste suficiente sobre qualquer seção, links com foco visível e menu mobile acessível (botão com `aria-expanded`, `aria-controls`, fecha com `Esc`).
+2. **Responsivo** (mobile-first): testar em 360px, 768px, 1024px e 1440px. Sem scroll horizontal.
+3. **Acessibilidade (WCAG 2.x AA):**
+   - HTML semântico: `header`, `nav`, `main`, `section`, `footer`, hierarquia de headings correta (um único `h1`).
+   - Link "Pular para o conteúdo" no topo da página.
+   - Contraste de texto mínimo 4.5:1 (3:1 para textos grandes).
+   - Todas as imagens com `alt` descritivo (decorativas: `alt=""`).
+   - Foco visível em todos os elementos interativos; navegação completa por teclado.
+   - Alvos de toque com pelo menos 44x44px.
+   - Respeitar `prefers-reduced-motion`: desativar/reduzir as animações para quem preferir.
+   - Atributo `lang="pt-BR"` no `<html>`.
+   - Formulários com `label` associado, mensagens de erro claras e `aria-live` quando necessário.
+4. **Rolagem fluida (smooth scroll):** usar a biblioteca **Lenis** (`npm install lenis`). Ver seção 3.1.
+5. **Performance:** usar `next/image` quando possível, `loading="lazy"` em imagens fora da dobra.
+6. Componentizar cada seção em `/components/sections/*`.
+
+### 3.1 Rolagem fluida (Lenis)
+
+```bash
+npm install lenis
+```
+
+Crie `/components/smooth-scroll.tsx` e envolva o conteúdo no `layout.tsx`:
+
+```tsx
+"use client";
+
+import { ReactLenis } from "lenis/react";
+
+export function SmoothScroll({ children }: { children: React.ReactNode }) {
+  return (
+    <ReactLenis root options={{ lerp: 0.1, duration: 1.2, smoothWheel: true }}>
+      {children}
+    </ReactLenis>
+  );
+}
+```
+
+Regras:
+- Usar no `app/layout.tsx` envolvendo `{children}` (o navbar deve continuar fixo).
+- **Acessibilidade:** respeitar `prefers-reduced-motion`. Se o usuário preferir movimento reduzido, NÃO ativar o Lenis (renderizar `children` direto, com scroll nativo).
+- Âncoras do navbar (`#secao`) devem usar `lenis.scrollTo()` ou o scroll nativo; compensar a altura do navbar fixo com `scroll-margin-top` nas seções.
+- Garantir que a navegação por teclado (Tab, setas, Page Down, Home/End) continue funcionando.
+- Verificar compatibilidade com o `useScroll` do framer-motion: as animações `TextGradientScroll` e `Scroll01` devem continuar respondendo ao scroll normalmente.
+- Adicionar em `globals.css` as regras recomendadas na documentação oficial do Lenis (ex.: `html.lenis, html.lenis body { height: auto; }`).
+
+---
+
+## 4. Animações / componentes a integrar
+
+### 4.1 Seções com SOMENTE TEXTO (transição entre seções) → `TextGradientScroll`
+
+Use o componente `text-gradient-scroll` nas seções que tiverem apenas texto, funcionando como transição entre as seções.
+
+Arquivo: `/components/ui/text-gradient-scroll.tsx`
+
+```tsx
+"use client";
+
+import React, { createContext, useContext, useRef } from "react";
+import { useScroll, useTransform, motion, MotionValue } from "framer-motion";
+import { cn } from "@/lib/utils";
+
+type TextOpacityEnum = "none" | "soft" | "medium";
+type ViewTypeEnum = "word" | "letter";
+
+type TextGradientScrollType = {
+  text: string;
+  type?: ViewTypeEnum;
+  className?: string;
+  textOpacity?: TextOpacityEnum;
+};
+
+type LetterType = {
+  children: React.ReactNode | string;
+  progress: MotionValue<number>;
+  range: number[];
+};
+
+type WordType = {
+  children: React.ReactNode;
+  progress: MotionValue<number>;
+  range: number[];
+};
+
+type CharType = {
+  children: React.ReactNode;
+  progress: MotionValue<number>;
+  range: number[];
+};
+
+type TextGradientScrollContextType = {
+  textOpacity?: TextOpacityEnum;
+  type?: ViewTypeEnum;
+};
+
+const TextGradientScrollContext = createContext<TextGradientScrollContextType>(
+  {}
+);
+
+function useGradientScroll() {
+  const context = useContext(TextGradientScrollContext);
+  return context;
+}
+
+function TextGradientScroll({
+  text,
+  className,
+  type = "letter",
+  textOpacity = "soft",
+}: TextGradientScrollType) {
+  const ref = useRef<HTMLParagraphElement>(null);
+  const { scrollYProgress } = useScroll({
+    target: ref,
+    offset: ["start center", "end center"],
+  });
+
+  const words = text.split(" ");
+
+  return (
+    <TextGradientScrollContext.Provider value={{ textOpacity, type }}>
+      <p ref={ref} className={cn("relative flex m-0 flex-wrap", className)}>
+        {words.map((word, i) => {
+          const start = i / words.length;
+          const end = start + 1 / words.length;
+          return type === "word" ? (
+            <Word key={i} progress={scrollYProgress} range={[start, end]}>
+              {word}
+            </Word>
+          ) : (
+            <Letter key={i} progress={scrollYProgress} range={[start, end]}>
+              {word}
+            </Letter>
+          );
+        })}
+      </p>
+    </TextGradientScrollContext.Provider>
+  );
+}
+
+export { TextGradientScroll };
+
+const Word = ({ children, progress, range }: WordType) => {
+  const opacity = useTransform(progress, range, [0, 1]);
+
+  return (
+    <span className="relative me-2 mt-2">
+      <span style={{ position: "absolute", opacity: 0.1 }}>{children}</span>
+      <motion.span style={{ transition: "all .5s", opacity: opacity }}>
+        {children}
+      </motion.span>
+    </span>
+  );
+};
+
+const Letter = ({ children, progress, range }: LetterType) => {
+  if (typeof children === "string") {
+    const amount = range[1] - range[0];
+    const step = amount / children.length;
+
+    return (
+      <span className="relative me-2 mt-2">
+        {children.split("").map((char: string, i: number) => {
+          const start = range[0] + i * step;
+          const end = range[0] + (i + 1) * step;
+          return (
+            <Char key={`c_${i}`} progress={progress} range={[start, end]}>
+              {char}
+            </Char>
+          );
+        })}
+      </span>
+    );
+  }
+};
+
+const Char = ({ children, progress, range }: CharType) => {
+  const opacity = useTransform(progress, range, [0, 1]);
+  const { textOpacity } = useGradientScroll();
+
+  return (
+    <span>
+      <span
+        className={cn("absolute", {
+          "opacity-0": textOpacity == "none",
+          "opacity-10": textOpacity == "soft",
+          "opacity-30": textOpacity == "medium",
+        })}
+      >
+        {children}
+      </span>
+      <motion.span
+        style={{
+          transition: "all .5s",
+          opacity: opacity,
+        }}
+      >
+        {children}
+      </motion.span>
+    </span>
+  );
+};
+```
+
+Exemplo de uso (demo):
+
+```tsx
+import { TextGradientScroll } from "@/components/ui/text-gradient-scroll"
+
+function TextGradientScrollExample() {
+  return (
+    <div className="min-h-[200vh] w-full relative">
+      <div className="fixed inset-0 flex items-center justify-center pointer-events-none">
+        <div className="w-full max-w-5xl mx-auto p-4 items-center">
+          <div className="flex p-4 text-2xl pt-14 w-[700px] mx-auto h-[500px] flex-col items-start justify-end pointer-events-auto">
+            <TextGradientScroll text="Texto da seção aqui." />
+          </div>
+        </div>
+      </div>
+      <div className="h-[200vh]" aria-hidden="true" />
+    </div>
+  )
+}
+
+export { TextGradientScrollExample }
+```
+
+Notas de implementação:
+- Adapte o demo (não ao layout fixo do Figma): larguras fluidas no mobile, não use `w-[700px]` fixo em telas pequenas).
+- Acessibilidade: o componente divide o texto em spans por letra/palavra. Garanta que leitores de tela leiam o texto completo (ex.: `aria-label` com o texto completo no contêiner e `aria-hidden="true"` nos spans animados, ou um equivalente `sr-only`).
+- Com `prefers-reduced-motion`, renderize o texto estático e totalmente visível.
+
+---
+
+### 4.2 Seção de DEPOIMENTOS → carrossel `Skiper49` (Swiper coverflow)
+
+Arquivo: `/components/ui/skiper49.tsx`
+
+Dependências:
+
+```bash
+npm install swiper lucide-react framer-motion
+```
+
+```tsx
+"use client";
+
+import { motion } from "framer-motion";
+import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
+import React from "react";
+import {
+  Autoplay,
+  EffectCoverflow,
+  Navigation,
+  Pagination,
+} from "swiper/modules";
+import { Swiper, SwiperSlide } from "swiper/react";
+import "swiper/css/effect-coverflow";
+import "swiper/css/pagination";
+import "swiper/css/navigation";
+import "swiper/css";
+import "swiper/css/effect-cards";
+
+import { cn } from "@/lib/utils";
+
+const Skiper49 = () => {
+  // IMPORTANTE: trocar as imagens originais (links cdn.21st.dev) pelas
+  // TRÊS imagens de depoimento do projeto (ver instrução abaixo).
+  const images = [
+    { src: "/images/Depoimento1.webp", alt: "Depoimento de cliente 1 da EngenhArq" },
+    { src: "/images/Depoimento2.webp", alt: "Depoimento de cliente 2 da EngenhArq" },
+    { src: "/images/Depoimento3.webp", alt: "Depoimento de cliente 3 da EngenhArq" },
+  ];
+
+  return (
+    <div className="flex h-full w-full items-center justify-center overflow-hidden bg-[#f5f4f3]">
+      <Carousel_003 className="" images={images} showPagination loop />
+    </div>
+  );
+};
+
+export { Skiper49 };
+
+const Carousel_003 = ({
+  images,
+  className,
+  showPagination = false,
+  showNavigation = false,
+  loop = true,
+  autoplay = false,
+  spaceBetween = 0,
+}: {
+  images: { src: string; alt: string }[];
+  className?: string;
+  showPagination?: boolean;
+  showNavigation?: boolean;
+  loop?: boolean;
+  autoplay?: boolean;
+  spaceBetween?: number;
+}) => {
+  const css = `
+  .Carousal_003 {
+    width: 100%;
+    height: 350px;
+    padding-bottom: 50px !important;
+  }
+
+  .Carousal_003 .swiper-slide {
+    background-position: center;
+    background-size: cover;
+    width: 300px;
+  }
+
+  .swiper-pagination-bullet {
+    background-color: #000 !important;
+  }
+`;
+  return (
+    <motion.div
+      initial={{ opacity: 0, translateY: 20 }}
+      animate={{ opacity: 1, translateY: 0 }}
+      transition={{ duration: 0.3, delay: 0.5 }}
+      className={cn("relative w-full max-w-4xl px-5", className)}
+    >
+      <style>{css}</style>
+
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.3 }}
+        className="w-full"
+      >
+        <Swiper
+          spaceBetween={spaceBetween}
+          autoplay={
+            autoplay
+              ? { delay: 1500, disableOnInteraction: true }
+              : false
+          }
+          effect="coverflow"
+          grabCursor={true}
+          slidesPerView="auto"
+          centeredSlides={true}
+          loop={loop}
+          coverflowEffect={{
+            rotate: 40,
+            stretch: 0,
+            depth: 100,
+            modifier: 1,
+            slideShadows: true,
+          }}
+          pagination={showPagination ? { clickable: true } : false}
+          navigation={
+            showNavigation
+              ? {
+                  nextEl: ".swiper-button-next",
+                  prevEl: ".swiper-button-prev",
+                }
+              : false
+          }
+          className="Carousal_003"
+          modules={[EffectCoverflow, Autoplay, Pagination, Navigation]}
+        >
+          {images.map((image, index) => (
+            <SwiperSlide key={index} className="">
+              <img
+                className="h-full w-full object-cover"
+                src={image.src}
+                alt={image.alt}
+              />
+            </SwiperSlide>
+          ))}
+          {showNavigation && (
+            <div>
+              <div className="swiper-button-next after:hidden">
+                <ChevronRightIcon className="h-6 w-6 text-white" />
+              </div>
+              <div className="swiper-button-prev after:hidden">
+                <ChevronLeftIcon className="h-6 w-6 text-white" />
+              </div>
+            </div>
+          )}
+        </Swiper>
+      </motion.div>
+    </motion.div>
+  );
+};
+
+export { Carousel_003 };
+export default Skiper49;
+
+/**
+ * Skiper 49 Carousel_003 — React + Swiper
+ * Built with Swiper.js - https://swiperjs.com/
+ * Illustrations by AarzooAly - https://x.com/AarzooAly
+ *
+ * License & Usage:
+ * - Free to use and modify in both personal and commercial projects.
+ * - Attribution to Skiper UI is required when using the free version.
+ * - No attribution required with Skiper UI Pro.
+ *
+ * Author: @gurvinder-singh02 — https://gxuri.me — https://x.com/Gur__vi
+ */
+```
+
+Exemplo de uso (demo):
+
+```tsx
+import { Skiper49 } from "@/components/ui/skiper49";
+
+export default function Skiper49Demo() {
+  return (
+    <div className="h-screen w-full">
+      <Skiper49 />
+    </div>
+  );
+}
+```
+
+**Troca de imagens (obrigatório):**
+- Remova TODAS as imagens originais do componente (links `cdn.21st.dev`).
+- Use somente as **três imagens de depoimento** fornecidas pelo usuário em prompt anterior. Os arquivos se chamam `Depoimento1.webp`, `Depoimento2.webp` e `Depoimento3.webp` e devem ficar em `/public/images/` (respeite maiúsculas/minúsculas nos nomes).
+- Se os arquivos não estiverem disponíveis no repositório, NÃO invente imagens: deixe os caminhos acima e avise o usuário que precisa colocar os arquivos na pasta.
+- Escreva `alt` descritivo para cada depoimento (idealmente com o nome do cliente e o conteúdo do depoimento).
+- Acessibilidade do carrossel: autoplay desativado (padrão `autoplay={false}`), paginação navegável por teclado, e `showNavigation` com botões que tenham `aria-label` ("Depoimento anterior" / "Próximo depoimento"). Prefira `showNavigation` ativo para usuários de teclado.
+- Verifique contraste dos bullets de paginação (`#000`) com o fundo `#f5f4f3`; ajuste conforme as cores do Figma (respeitando o contraste).
+
+---
+
+### 4.3 Segunda/terceira seção (foto da equipe + texto de introdução da história) → `Scroll01`
+
+Use o componente `Scroll01` na segunda/terceira seção, onde há a **foto da equipe EngenhArq** e o texto que introduz a história da empresa.
+
+Import esperado: `import { Scroll01 } from "@/components/ui/scroll-01";`
+
+Demo de referência (formato dos dados):
+
+```tsx
+import { Scroll01 } from "@/components/ui/scroll-01";
+
+const values = {
+  items: [
+    {
+      title: "Build faster",
+      description: "Create interfaces quickly using reusable blocks.",
+      media: "https://cdn.21st.dev/assets/mirror/....jpg", // NÃO USAR
+    },
+    // ...mais itens
+  ],
+};
+
+export default function Scroll01Demo() {
+  return (
+    <div className="mx-auto max-w-4xl px-4">
+      <div className="h-10" />
+      <Scroll01 items={values.items} />
+      <div className="h-32" />
+    </div>
+  );
+}
+```
+
+**Regras:**
+- **NÃO use as fotos que estão como links** no demo. Por enquanto use **somente** a foto `Equipe_engenharq.webp` (deve ficar em `/public/images/Equipe_engenharq.webp`; respeite maiúsculas/minúsculas).
+- Substitua `title` e `description` pelos textos reais da história da EngenhArq (copiados literalmente do protótipo do Figma). Não deixe os textos "Build faster", etc.
+- O que é o `Scroll01` (21st.dev, autor felipemenezes098, licença MIT, dependência npm: `motion`): seção guiada pelo scroll, com mídia fixa (sticky) de um lado que troca de imagem conforme a pessoa rola o texto ao lado. Cada item tem `title`, `description` e `media`.
+- O código-fonte NÃO veio junto com as instruções (só o demo). Ordem de tentativa:
+  1. Instalar o original: `npm install motion` e depois `npx shadcn@latest add "https://21st.dev/r/felipemenezes098/scroll-01?api_key=$API_KEY_21ST"`. Exige uma chave de API da 21st (gerada em https://21st.dev/mcp). Se `API_KEY_21ST` não estiver definida, NÃO invente a chave: use a opção 2 e avise o usuário.
+  2. Se a instalação falhar, usar a implementação reserva abaixo (equivalente em comportamento, NÃO é o código original). Salvar em `/components/ui/scroll-01.tsx`, mantendo a mesma API (`<Scroll01 items={...} />`).
+
+```tsx
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { AnimatePresence, motion, useInView, useReducedMotion } from "framer-motion";
+
+type Scroll01Item = {
+  title: string;
+  description: string;
+  media: string;
+  alt?: string;
+};
+
+function TextBlock({
+  item,
+  index,
+  onActive,
+}: {
+  item: Scroll01Item;
+  index: number;
+  onActive: (i: number) => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  // Ativa o item quando ele cruza o meio da tela
+  const inView = useInView(ref, { margin: "-50% 0px -50% 0px" });
+
+  useEffect(() => {
+    if (inView) onActive(index);
+  }, [inView, index, onActive]);
+
+  return (
+    <div ref={ref} className="flex min-h-[70vh] flex-col justify-center">
+      <h3 className="text-3xl font-semibold">{item.title}</h3>
+      <p className="mt-3 text-lg">{item.description}</p>
+    </div>
+  );
+}
+
+export function Scroll01({ items }: { items: Scroll01Item[] }) {
+  const [active, setActive] = useState(0);
+  const reduce = useReducedMotion();
+  const current = items[active] ?? items[0];
+
+  return (
+    <section className="grid gap-8 md:grid-cols-2">
+      <div className="md:sticky md:top-24 md:h-[70vh] md:self-start">
+        <div className="relative h-72 overflow-hidden rounded-2xl md:h-full">
+          <AnimatePresence mode="wait">
+            <motion.img
+              key={current.media}
+              src={current.media}
+              alt={current.alt ?? current.title}
+              className="absolute inset-0 h-full w-full object-cover"
+              initial={reduce ? false : { opacity: 0, scale: 1.03 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={reduce ? undefined : { opacity: 0 }}
+              transition={{ duration: 0.4 }}
+            />
+          </AnimatePresence>
+        </div>
+      </div>
+      <div>
+        {items.map((item, i) => (
+          <TextBlock key={i} item={item} index={i} onActive={setActive} />
+        ))}
+      </div>
+    </section>
+  );
+}
+```
+
+  Observações da implementação reserva: ajustar cores, tipografia e raio de borda ao Figma (o layout segue boas práticas responsivas, não o Figma); com um único item/foto, o efeito de troca fica estático (esperado); com `prefers-reduced-motion`, sem animação de entrada/saída.
+- Como só há uma foto por enquanto, adapte `items` para usar a mesma foto `Equipe_engenharq.webp` (ou apenas um item) sem quebrar o componente.
+- Dê `alt` descritivo à foto, por exemplo: "Equipe da EngenhArq reunida".
+
+---
+
+## 5. Guia de implementação (checklist para o Codex)
+
+1. Analisar a estrutura de cada componente e identificar dependências.
+2. Revisar os argumentos (props) e o estado de cada componente.
+3. Identificar providers de contexto/hooks necessários (ex.: `TextGradientScrollContext` já vem embutido no componente) e instalá-los.
+4. Copiar todo o código acima para os diretórios corretos (`/components/ui`).
+5. Instalar dependências externas: `framer-motion`, `swiper`, `lucide-react`.
+6. Para imagens ainda não disponíveis: usar imagens de stock do Unsplash que você tenha certeza que existem. Para as imagens já definidas (`Equipe_engenharq.webp` e `Depoimento1/2/3.webp`), usar SOMENTE as do usuário.
+7. Usar ícones do `lucide-react` para SVGs/logos quando o componente precisar.
+8. Perguntas a considerar antes de integrar:
+   - Quais dados/props serão passados ao componente?
+   - Há requisitos de gerenciamento de estado?
+   - Há assets necessários (imagens, ícones)?
+   - Qual o comportamento responsivo esperado?
+   - Qual o melhor lugar do app para usar o componente?
+9. Construir as seções seguindo a ordem, os textos e a identidade visual (cores, tipografia, estilo) do Figma, com layout responsivo próprio (ver seção 1).
+10. Rodar `npm run build` e `npm run lint` sem erros.
+11. Auditar acessibilidade (axe DevTools / Lighthouse) e corrigir problemas de contraste, foco e semântica.
+
+---
+
+## 6. Mapa resumido das seções e animações
+
+| Seção | Conteúdo | Animação/Componente |
+|---|---|---|
+| Navbar | Logo + links + CTA | Fixa, acompanha o scroll |
+| Página inteira | Rolagem | Fluida (Lenis), desativada com `prefers-reduced-motion` |
+| Hero | Textos e estilo do Figma | Layout responsivo livre |
+| 2ª/3ª seção | Foto `Equipe_engenharq.webp` + texto de introdução da história | `Scroll01` |
+| Seções apenas de texto (transição) | Frases de destaque/transição | `TextGradientScroll` |
+| Depoimentos | 3 imagens de depoimento | `Skiper49` (Swiper coverflow) |
+| Demais seções / Footer | Textos e estilo do Figma | Layout responsivo livre |
+
+---
+
+## 7. Definição de pronto
+
+- Textos, cores, tipografia e estilo fiéis ao protótipo do Figma (layout NÃO precisa ser idêntico).
+- Nenhum texto inventado: o que faltar no Figma está listado como pendência.
+- Navbar acompanhando o scroll em todas as páginas.
+- Rolagem fluida funcionando, sem quebrar as animações nem a navegação por teclado.
+- Animações aplicadas nas seções corretas, com fallback para `prefers-reduced-motion`.
+- Nenhuma imagem de link externo dos demos (cdn.21st.dev) no site final.
+- Responsivo em mobile, tablet e desktop.
+- WCAG 2 AA verificado.
+- Build e lint passando.
